@@ -1,0 +1,229 @@
+# coding: utf-8
+
+# In[1]:
+
+
+import pandas as pd
+import numpy as np
+
+
+# In[2]:
+
+
+from sklearn.model_selection import train_test_split
+
+
+# In[3]:
+
+
+from sklearn.metrics import mean_squared_error
+
+
+# In[4]:
+
+
+from sklearn.preprocessing import OneHotEncoder
+
+
+# In[5]:
+
+
+from sklearn.preprocessing import scale
+
+
+# In[6]:
+
+
+from sklearn.ensemble import GradientBoostingRegressor
+
+
+# In[7]:
+
+
+data = pd.read_csv('train_NIR5Yl1.csv')
+
+
+# In[8]:
+
+
+data_test = pd.read_csv('test_8i3B3FC.csv') 
+
+
+# In[9]:
+
+
+def preprocess(df):
+    df = df.drop(['ID'], axis = 1)
+    df['Tag'] = char2num(df['Tag'])
+    encoded_tag = pd.DataFrame(enc.transform(df.Tag.reshape(-1, 1)).toarray())
+    df = df.drop(['Tag'], axis = 1)
+    df = df.join(encoded_tag)
+    df = df.drop(['Username'], axis = 1)
+    return df
+
+
+# In[10]:
+
+
+data = data.drop(['ID'], axis = 1)
+
+
+# In[11]:
+
+
+def char2num(col):
+    char2id = {
+        'a' : 0,
+        'c' : 1,
+        'h' : 2,
+        'i' : 3,
+        'j' : 4,
+        'o' : 5,
+        'p' : 6,
+        'r' : 7,
+        's' : 8,
+        'x' : 9
+    }
+    temp = []
+    for i in range(len(col)):
+        temp.append(char2id[col[i]])
+    
+    return temp
+
+
+# In[12]:
+
+
+data['Tag'] = char2num(data['Tag'])
+
+
+# In[13]:
+
+
+enc = OneHotEncoder()
+enc.fit(data.Tag.reshape(-1, 1))
+
+
+# In[14]:
+
+
+encoded_tag = pd.DataFrame(enc.transform(data.Tag.reshape(-1, 1)).toarray())
+
+
+# In[15]:
+
+
+data = data.drop(['Tag'], axis = 1)
+data = data.drop(['Username'], axis = 1)
+
+
+# In[16]:
+
+
+data = data.join(encoded_tag)
+
+
+# In[17]:
+
+
+train_X, test_X, train_Y, test_Y = train_test_split(data.drop(['Upvotes'], axis = 1), data['Upvotes'], random_state = 31, test_size = 0.2)
+
+
+# In[18]:
+
+
+def errors(model):
+    prediction = model.predict(test_X)
+    test_rmse = mean_squared_error(test_Y, prediction)
+    train_prediction = model.predict(train_X)
+    train_rmse = mean_squared_error(train_Y, train_prediction)
+    return test_rmse, train_rmse
+
+
+# # Gradient Boosting Regressor
+
+# In[19]:
+
+
+model3 = GradientBoostingRegressor(learning_rate = 0.1, n_estimators = 100, max_depth = 6)
+model3.fit(train_X, train_Y)
+
+
+# In[20]:
+
+
+errors(model3)
+
+
+# # Overall DATA Training
+
+# In[21]:
+
+
+final_model = GradientBoostingRegressor(learning_rate = 0.1, n_estimators = 100, max_depth = 6)
+final_model.fit(data.drop(['Upvotes'], axis = 1), data['Upvotes'])
+
+
+# In[22]:
+
+
+errors(final_model)
+
+
+# # Test Prediction
+
+# In[23]:
+
+
+data_test1 = preprocess(data_test.copy())
+
+
+# In[25]:
+
+
+result = final_model.predict(data_test1)
+
+
+# In[27]:
+
+
+res = pd.DataFrame(data_test['ID']).join(pd.DataFrame(result))
+
+
+# In[28]:
+
+
+res.columns = ['ID', 'Upvotes']
+
+
+# In[29]:
+
+
+res = res.sort_values(['ID'])
+res.index = range(res.shape[0])
+
+
+# In[30]:
+
+
+res['Upvotes'] = round(res['Upvotes'])
+
+
+# In[31]:
+
+
+temp1 = []
+for i in range(len(res['Upvotes'])):
+    temp1.append(int(res['Upvotes'][i])) 
+
+
+# In[32]:
+
+
+res['Upvotes'] = temp1
+
+
+# In[33]:
+
+
+res.to_csv('Upvotes_gbm.csv')
